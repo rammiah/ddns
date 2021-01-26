@@ -1,17 +1,22 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
 	_ "github.com/aliyun/alibaba-cloud-sdk-go"
-	"github.com/bitly/go-simplejson"
 )
 
 const (
 	IPv6Url = "https://api-ipv6.ip.sb/jsonip"
 	IPv4Url = "https://api-ipv4.ip.sb/jsonip"
 )
+
+type JsonIP struct {
+	IP string `json:"ip"`
+}
 
 func main() {
 	resp, err := http.Get(IPv4Url)
@@ -23,5 +28,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	simplejson.NewJson(content)
+
+	jsip := new(JsonIP)
+	if err := json.Unmarshal(content, jsip); err != nil {
+		panic(err)
+	} else {
+		fmt.Printf("ip is: %q\n", jsip.IP)
+	}
 }
