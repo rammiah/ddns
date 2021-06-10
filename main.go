@@ -2,13 +2,37 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	_ "github.com/aliyun/alibaba-cloud-sdk-go"
+	"github.com/aliyun/alibaba-cloud-sdk-go/services/alidns"
+	"github.com/joho/godotenv"
 )
+
+var (
+	dnsCli *alidns.Client
+)
+
+func init() {
+	if err := godotenv.Load(); err != nil {
+		log.Printf("load .env error: %v\n", err)
+		panic(err)
+	}
+
+	cli, err := alidns.NewClientWithAccessKey("cn-beijing", os.Getenv("ACCESSKEY_ID"), os.Getenv("ACCESSKEY_SECRET"))
+	if err != nil {
+		log.Printf("create client error: %v\n", err)
+		panic(err)
+	}
+	dnsCli = cli
+}
 
 const (
 	IPv6Url = "https://api-ipv6.ip.sb/jsonip"
@@ -45,11 +69,85 @@ func GetIPv6IP() net.IP {
 	return ip
 }
 
-func main() {
+func QueryRecordID(name string) (id, value string, _ error) {
+	req := alidns.CreateDescribeSubDomainRecordsRequest()
+	req.Scheme = "https"
+
+	req.SubDomain = "rdp.awsl.xin"
+
+	resp, err := dnsCli.DescribeSubDomainRecords(req)
+	if err != nil {
+		log.Printf("query sub domain records error: %v\n", err)
+		return "", "", err
+	}
+	for _, rec := range resp.DomainRecords.Record {
+		if rec.Type == "AAAA" {
+			log.Printf("query record success: %v, ip %v\n", rec.RecordId, rec.Value)
+			return rec.RecordId, rec.Value, nil
+		}
+	}
+
+	return "", "", errors.New("no results")
+}
+
+func UpdateDdns(name string, ip net.IP) error {
+	recId, val, err := QueryRecordID(name)
+	if err != nil {
+		log.Printf("query record id error: %v\n", err)
+		return err
+	}
+	log.Printf("query name %v success, ip %v, record id %v\n", name, val, recId)
+
+	if val == ip.String() {
+		log.Printf("ip is same, input[%v], exists[%v], return success\n", ip.String(), val)
+		return nil
+	}
+
+	req := alidns.CreateUpdateDomainRecordRequest()
+	req.Scheme = "https"
+	req.RR = name[:strings.Index(name, ".")]
+	req.RecordId = recId
+	req.Type = "AAAA"
+	req.Value = ip.String()
+
+	resp, err := dnsCli.UpdateDomainRecord(req)
+	if err != nil {
+		log.Printf("update record error: %v\n", err)
+		return err
+	}
+
+	log.Printf("request response: success %v, request id %v\n", resp.BaseResponse.IsSuccess(), resp.RequestId)
+
+	return nil
+}
+
+func RunUpdate() {
 	ip := GetIPv6IP()
 	if ip == nil {
 		log.Printf("get ip failed\n")
-	} else {
-		log.Printf("get ip success: %v", ip)
+		return
 	}
+	log.Printf("query ip success: %v\n", ip)
+
+	name := "rdp.awsl.xin"
+
+	log.Printf("get ip success: %v", ip)
+	if err := UpdateDdns(name, ip); err != nil {
+		log.Printf("update ip error: %v\n", err)
+		return
+	}
+
+	log.Printf("update success")
+}
+
+func main() {
+	RunUpdate()
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for t := range ticker.C {
+		log.Printf("start process at %v\n", t)
+		RunUpdate()
+	}
+
 }
