@@ -2,8 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
+	"log"
+	"net"
 	"net/http"
 
 	_ "github.com/aliyun/alibaba-cloud-sdk-go"
@@ -18,21 +19,37 @@ type JsonIP struct {
 	IP string `json:"ip"`
 }
 
-func main() {
-	resp, err := http.Get(IPv4Url)
+func GetIPv6IP() net.IP {
+	resp, err := http.Get(IPv6Url)
 	if err != nil {
-		panic(err)
+		log.Printf("get http error: %v\n", err)
+		return nil
 	}
 	defer resp.Body.Close()
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		panic(err)
+		log.Printf("read data error: %v\n", err)
+		return nil
 	}
 
 	jsip := new(JsonIP)
 	if err := json.Unmarshal(content, jsip); err != nil {
-		panic(err)
+		log.Printf("unmarshal result [%v] error: %v\n", string(content), err)
+		return nil
+	}
+	ip := net.ParseIP(jsip.IP)
+	if ip == nil {
+		log.Printf("parse ip[%v] failed\n", jsip.IP)
+		return nil
+	}
+	return ip
+}
+
+func main() {
+	ip := GetIPv6IP()
+	if ip == nil {
+		log.Printf("get ip failed\n")
 	} else {
-		fmt.Printf("ip is: %q\n", jsip.IP)
+		log.Printf("get ip success: %v", ip)
 	}
 }
