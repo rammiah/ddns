@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/aliyun/alibaba-cloud-sdk-go"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/alidns"
 	"github.com/joho/godotenv"
 )
