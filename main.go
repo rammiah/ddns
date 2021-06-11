@@ -3,13 +3,13 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/alidns"
 	"github.com/joho/godotenv"
@@ -20,6 +20,11 @@ var (
 )
 
 func init() {
+	w := log.Default().Writer()
+	if o, err := os.OpenFile("log.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+		w = io.MultiWriter(w, o)
+	}
+	log.SetOutput(w)
 	if err := godotenv.Load(); err != nil {
 		log.Printf("load .env error: %v\n", err)
 		panic(err)
@@ -141,12 +146,4 @@ func RunUpdate() {
 
 func main() {
 	RunUpdate()
-	ticker := time.NewTicker(10 * time.Minute)
-	defer ticker.Stop()
-
-	for t := range ticker.C {
-		log.Printf("start process at %v\n", t)
-		RunUpdate()
-	}
-
 }
