@@ -77,7 +77,7 @@ func QueryRecordID(name string) (id, value string, _ error) {
 	req := alidns.CreateDescribeSubDomainRecordsRequest()
 	req.Scheme = "https"
 
-	req.SubDomain = "rdp.awsl.xin"
+	req.SubDomain = name
 
 	resp, err := dnsCli.DescribeSubDomainRecords(req)
 	if err != nil {
@@ -120,7 +120,7 @@ func UpdateDdns(name string, ip net.IP) error {
 		return err
 	}
 
-	log.Printf("request response: success %v, request id %v\n", resp.BaseResponse.IsSuccess(), resp.RequestId)
+	log.Printf("request response: success %v, request id %v\n", resp.IsSuccess(), resp.RequestId)
 
 	return nil
 }
@@ -133,7 +133,7 @@ func RunUpdate() {
 	}
 	log.Printf("query ip success: %v\n", ip)
 
-	name := "rdp.awsl.xin"
+	name := "laptop.awsl.xin"
 
 	log.Printf("get ip success: %v", ip)
 	if err := UpdateDdns(name, ip); err != nil {
