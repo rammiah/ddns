@@ -21,7 +21,7 @@ var (
 
 func init() {
 	w := log.Default().Writer()
-	if o, err := os.OpenFile("log.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+	if o, err := os.OpenFile("ddns.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
 		w = io.MultiWriter(w, o)
 	}
 	log.SetOutput(w)
