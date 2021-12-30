@@ -2,18 +2,20 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/libdns/alidns"
 	"github.com/libdns/libdns"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -62,45 +64,82 @@ func GetIPv6IP() net.IP {
 		return nil
 	}
 
-	jsip := new(JsonIP)
-	if err := json.Unmarshal(content, jsip); err != nil {
-		log.Printf("unmarshal result [%v] error: %v\n", string(content), err)
-		return nil
-	}
-	ip := net.ParseIP(jsip.IP)
-	if ip == nil {
-		log.Printf("parse ip[%v] failed\n", jsip.IP)
+	ipStr := gjson.GetBytes(content, "ip").String()
+
+	ip := net.ParseIP(ipStr)
+	if len(ip) != net.IPv6len {
+		log.Printf("parse ip[%v] failed\n", ipStr)
 		return nil
 	}
 	return ip
 }
 
-func RunUpdate(sub, dom, typ string) {
-	ip := GetIPv6IP()
-	if ip == nil {
-		log.Printf("get ip failed\n")
-		return
-	}
-	log.Printf("get ip success: %v\n", ip)
-
+func Update(sub, dom, typ, target string) error {
 	ctx := context.Background()
 	_, err := AliPrd.SetRecords(ctx, dom, []libdns.Record{
 		{
 			Type:  typ,
 			Name:  sub,
-			Value: ip.String(),
+			Value: target,
 			TTL:   10 * time.Minute,
 		},
 	})
 
 	if err != nil {
 		log.Printf("update records error: %v\n", err)
-		return
+		return err
 	}
 	log.Printf("update %v.%v success\n", sub, dom)
+	return nil
+}
+
+func UpdateDomainsFromFile() error {
+	ip := GetIPv6IP()
+	if ip == nil {
+		log.Printf("get ip failed\n")
+		return errors.New("nil ip")
+	}
+
+	log.Printf("get ip success: %v\n", ip)
+	buf, err := ioutil.ReadFile("conf/domain.json")
+	if err != nil {
+		log.Printf("read conf file error: %v", err)
+		return err
+	}
+
+	if !gjson.ValidBytes(buf) {
+		return errors.New("conf file not valid json")
+	}
+
+	js := gjson.ParseBytes(buf)
+	if !js.IsArray() {
+		return errors.New("no domain array detected")
+	}
+
+	domains := js.Array()
+	for _, d := range domains {
+		var (
+			sub    = d.Get("sub").String()
+			domain = d.Get("domain").String()
+			typo   = d.Get("type").String()
+		)
+		if err := Update(sub, domain, typo, ip.String()); err != nil {
+			if strings.Contains(err.Error(), "The DNS record already exists") {
+				// duplicate, skip
+				continue
+			}
+			return err
+		}
+	}
+
+	log.Printf("update all %v domain record success\n", len(domains))
+	return nil
 }
 
 func main() {
-	RunUpdate("laptop", "awsl.xin", DnsTypeAAAA)
-	RunUpdate("qbit", "awsl.xin", DnsTypeAAAA)
+	if err := UpdateDomainsFromFile(); err != nil {
+		log.Printf("update domain record error: %v\n", err)
+	} else {
+		log.Printf("update domain record success\n")
+	}
 }

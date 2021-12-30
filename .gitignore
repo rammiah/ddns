@@ -16,3 +16,4 @@
 .env
 *.log
 ddns
+conf/domain.json
