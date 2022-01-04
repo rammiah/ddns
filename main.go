@@ -24,6 +24,8 @@ const (
 
 var (
 	AliPrd *alidns.Provider
+
+	ErrDupStr = "The DNS record already exists"
 )
 
 func init() {
@@ -76,14 +78,20 @@ func GetIPv6IP() net.IP {
 
 func Update(sub, dom, typ, target string) error {
 	ctx := context.Background()
-	_, err := AliPrd.SetRecords(ctx, dom, []libdns.Record{
-		{
-			Type:  typ,
-			Name:  sub,
-			Value: target,
-			TTL:   10 * time.Minute,
-		},
-	})
+	var err error
+	for i := 0; i < 3; i++ {
+		_, err = AliPrd.SetRecords(ctx, dom, []libdns.Record{
+			{
+				Type:  typ,
+				Name:  sub,
+				Value: target,
+				TTL:   10 * time.Minute,
+			},
+		})
+		if err == nil || strings.Contains(err.Error(), ErrDupStr) {
+			break
+		}
+	}
 
 	if err != nil {
 		log.Printf("update records error: %v\n", err)
@@ -94,9 +102,15 @@ func Update(sub, dom, typ, target string) error {
 }
 
 func UpdateDomainsFromFile() error {
-	ip := GetIPv6IP()
-	if ip == nil {
-		log.Printf("get ip failed\n")
+	var ip net.IP
+	for i := 0; i < 3; i++ {
+		ip = GetIPv6IP()
+		if len(ip) == net.IPv6len {
+			break
+		}
+	}
+	if len(ip) != net.IPv6len {
+		log.Printf("get ip error: nil ip\n")
 		return errors.New("nil ip")
 	}
 
@@ -124,7 +138,7 @@ func UpdateDomainsFromFile() error {
 			typo   = d.Get("type").String()
 		)
 		if err := Update(sub, domain, typo, ip.String()); err != nil {
-			if strings.Contains(err.Error(), "The DNS record already exists") {
+			if strings.Contains(err.Error(), ErrDupStr) {
 				// duplicate, skip
 				continue
 			}
@@ -137,9 +151,12 @@ func UpdateDomainsFromFile() error {
 }
 
 func main() {
-	if err := UpdateDomainsFromFile(); err != nil {
-		log.Printf("update domain record error: %v\n", err)
-	} else {
-		log.Printf("update domain record success\n")
+	var err error
+	for i := 0; i < 3; i++ {
+		if err = UpdateDomainsFromFile(); err == nil {
+			log.Printf("update domain record success\n")
+			return
+		}
 	}
+	log.Printf("update domain record error: %v\n", err)
 }
