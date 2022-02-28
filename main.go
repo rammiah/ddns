@@ -45,8 +45,8 @@ func init() {
 }
 
 const (
-	IPv6Url = "https://api-ipv6.ip.sb/jsonip"
-	IPv4Url = "https://api-ipv4.ip.sb/jsonip"
+	IPv6Url = "https://ipv6.ddnspod.com"
+	IPv4Url = "https://ipv4.ddnspod.com"
 )
 
 type JsonIP struct {
@@ -66,7 +66,7 @@ func GetIPv6IP() net.IP {
 		return nil
 	}
 
-	ipStr := gjson.GetBytes(content, "ip").String()
+	ipStr := strings.TrimSpace(string(content))
 
 	ip := net.ParseIP(ipStr)
 	if len(ip) != net.IPv6len {
