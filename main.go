@@ -45,8 +45,8 @@ func init() {
 }
 
 const (
-	IPv6Url = "https://speed.neu6.edu.cn/getIP.php"
-	IPv4Url = "https://speed4.neu6.edu.cn/getIP.php"
+	IPv6Url = "https://6.ipw.cn"
+	IPv4Url = "https://4.ipw.cn"
 )
 
 type JsonIP struct {
